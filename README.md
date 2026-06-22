@@ -4,7 +4,7 @@
 
 ### 🚨 Real-Time Oil & Chemical Leak Detection for Industrial CCTV Systems
 
-A **production-grade AI pipeline** built for **real-time CCTV / RTSP monitoring**, combining **fast YOLO segmentation + custom tracking** for high-precision alerts.
+A **production-grade AI pipeline** built for **real-time CCTV / RTSP monitoring**, combining **fast YOLO segmentation + custom tracking + interactive Region of Interest (ROI) filtering** for high-precision alerts.
 
 > ⚙️ Powered by **YOLOv8 TensorRT (Segmentation & Tracking)**
 > 🧠 Designed for **low false positives, high reliability deployments**
@@ -22,70 +22,226 @@ A **production-grade AI pipeline** built for **real-time CCTV / RTSP monitoring*
 
 ---
 
-## Project Structure
-```
-├── config/
-│   ├── config.yaml          
-│   └── roi.yaml             
-│
-├── models/
-│   └── oil_spill_seg.engine 
-│
-├── src/
-│   ├── camera/
-│   │   └── rtsp_reader.py  
-│   ├── detector/
-│   │   └── spill_detector.py# YOLO tracking and segmentation wrapper
-│   ├── roi/
-│   │   └── roi_manager.py   # Mouse-click based manual ROI selector and filter
-│   ├── visualization/
-│   │   └── draw_results.py  # Annotation and overlay drawing
-│   ├── output/
-│   │   ├── save_image.py    
-│   │   ├── save_video.py    
-│   │   └── save_json.py     
-│   └── utils/
-│       ├── logger.py        # Rotating log recorder
-│       └── helpers.py       # YAML parser utilities
-│
-├── outputs/
-│   ├── images/             
-│   ├── videos/              
-│   └── json/                
-│
-├── logs/                    
-├── main.py                  
-└── requirements.txt        
-```
+## ⚡ Core Stack
 
-## Quick Start
-
-### 1. Configure the System
-Open `config/config.yaml` to specify:
-- **`camera.mode`**: Set to `"stream"` (for live streams/videos) or `"image"` (for single static image tests).
-- **`camera.source`**: RTSP URL, local video file path, webcam index, or local image file path.
-- **`model.weights`**: TensorRT engine weights path (defaults to `models/oil_spill_seg.engine`).
-- Custom output paths for saved images, videos, and JSON reports.
-- Video clip duration (seconds).
-
-### 2. Start the Pipeline
-Activate your conda environment and run:
-```bash
-conda run -n spill python main.py
-```
-
-### 3. Draw or Update your ROI
-- **On Startup**: A GUI window will open showing the first frame. Left-click points to draw your Region of Interest (ROI) polygon. Press **ENTER** (or Space) to save it and begin processing. Press **ESC** (or Q) to skip ROI filtering (monitors the entire frame).
-- **Caching**: The ROI is automatically saved to `config/roi.yaml`. On startup, you can press **ENTER** immediately to reuse the cached polygon.
-- **On-the-fly Resetting**: (Stream mode only) Press **`R`** on the live preview window at any time while the application is running to pause execution and draw a new ROI on the current frame.
+| Component | Purpose |
+|---|---|
+| 🛢️ **YOLOv8 Segmentation** | Real-time leak segmentation and class tracking (`spill`) |
+| 🛡️ **Interactive ROI Manager** | Mouse-click polygon drawing window to isolate detection zones |
+| 🎥 **Threaded RTSP Reader** | Low-latency H264/H265 hardware-accelerated GStreamer & RTSP reader |
+| 🔁 **Unique Track Filtering** | Deduplication to save exactly one screenshot per unique spill track ID |
+| 📝 **JSON Logger** | Auto-saving structured records of detections, track IDs, and pixel area metrics |
+| ⚙️ **YAML Config Engine** | Centrally managed settings for camera inputs, thresholds, and outputs |
 
 ---
 
-## Features
-- **Flexible Inputs**: Easily switch between static images and video feeds in `config.yaml`.
-- **GPU Acceleration**: Built-in support for YOLO TensorRT `.engine` models.
-- **Hardware-Accelerated Decoding**: Automatically activates the GStreamer backend (`cv2.CAP_GSTREAMER`) if camera source contains a pipeline string (indicated by the `!` character).
-- **Custom Directories**: Configurable output locations in `config/config.yaml`.
-- **Redundancy Filter**: Saves exactly **one** screenshot per unique leak tracking ID.
-- **Custom Event Recording**: When a spill is detected inside your ROI, a video clip of your configured length (e.g. 5 seconds) is recorded showing all bounding boxes and masks.
-- **Auto-Reconnection**: The RTSP reader automatically reconnects if the camera connection drops.
+## 🚀 Pipeline Overview
+
+```text
+Camera (RTSP Stream / Webcam / Video File / Static Image)
+                          ↓
+        Threaded Frame Reader (RTSPReader)
+                          ↓
+    Interactive ROI Polygon Selection on Startup
+                          ↓
+             YOLO Segmentation Model
+                          ↓
+     Contour Area & ROI Polygon Collision Filtering
+                          ↓
+      Track ID Deduplication (1 Alert per Spill ID)
+                          ↓
+  🚨 ALERT + Save (Annotated Image, Video Clip, JSON Log)
+```
+
+---
+
+## 🎯 Key Features
+
+* 🛢️ **Real-Time Spill Detection**: Direct integration with YOLOv8 segmentation engines for pixel-level leak localization.
+* 🛡️ **Interactive ROI Selector**: Graphically draw polygon boundaries on startup to filter out irrelevant areas (caching coordinates to `config/roi.yaml`).
+* 🔄 **On-the-Fly ROI Resetting**: Press `R` on the live window to redraw the ROI on the latest frame without restarting the pipeline.
+* ⚡ **GStreamer H264/H265 Support**: Decodes RTSP streams with high efficiency and lower latency.
+* 🔁 **Redundancy Filter**: Prevents alert flooding by saving exactly one crop/screenshot per unique track ID.
+* 🎥 **Custom Event Recording**: Records a video clip of configurable length (e.g., 5s) showing bounding boxes and masks when a spill enters the ROI.
+* 🔌 **Auto-Reconnection**: The RTSP reader automatically reconnects if the camera feed drops.
+* 📂 **Structured JSON Logging**: Auto-saves timestamps, areas, and confidence metadata for audit trails.
+
+---
+
+## 📂 Project Structure
+
+```bash
+spills/
+├── config/
+│   ├── config.yaml             # Main configuration file (model, camera, output parameters)
+│   └── roi.yaml                # Cached ROI coordinates
+│
+├── models/
+│   └── best.pt                 # YOLO model weights (.pt or TensorRT .engine format)
+│
+├── outputs/
+│   ├── images/                 # Confirmed spill screenshots
+│   ├── json/                   # Audit log files
+│   └── videos/                 # Confirmed spill video recordings
+│
+├── src/
+│   ├── camera/
+│   │   └── rtsp_reader.py      # Threaded frame reader (supporting standard/GStreamer)
+│   ├── detector/
+│   │   └── spill_detector.py   # YOLO model wrapper for segmentation & tracking
+│   ├── roi/
+│   │   └── roi_manager.py      # GUI-based manual ROI selector & geometry filter
+│   ├── visualization/
+│   │   └── draw_results.py     # Renders bbox overlays, masks, and status indicators
+│   ├── output/
+│   │   ├── save_image.py       # Alert screenshot saver (1 per unique ID)
+│   │   ├── save_video.py       # Temporary clip writer for detection events
+│   │   └── save_json.py        # Periodic JSON history logger
+│   └── utils/
+│       ├── logger.py           # Rotating log configuration
+│       └── helpers.py          # YAML loading helpers
+│
+├── main.py                     # Main application entry point
+└── README.md
+```
+
+---
+
+## ⚙️ Configuration
+
+All system behavior is controlled via `config/config.yaml`. No code changes needed.
+
+```yaml
+model:
+  weights: "models/best.pt" 
+  device: "cuda"                         
+  imgsz: 640                           
+  conf: 0.45                        
+  iou: 0.45                            
+  classes:
+    0: spill
+
+postprocess:
+  min_area_px: 500
+
+visualization:
+  show_preview: true                   
+  preview_scale: 0.75
+  mask_alpha: 0.4
+  colors:
+    oil: [0, 140, 255]
+
+camera:
+  mode: "stream"  # "stream" or "image"
+  source: "1.mp4" # RTSP URL, camera index, video file path, or image path
+  fps_limit: 25
+  width: 1280
+  height: 720
+
+output:
+  image_dir: "outputs/images"         
+  video_dir: "outputs/videos"          
+  json_dir: "outputs/json"             
+  video_duration_sec: 5
+```
+
+---
+
+## 🚀 Installation
+
+```bash
+git clone https://github.com/vivek97vivu/Spill_detction.git
+cd Spill_detction
+
+# Activate your conda environment (e.g., spill)
+conda activate spill
+
+# Install required dependencies
+pip install -r requirements.txt
+```
+
+### Requirements
+
+* NVIDIA GPU (CUDA support recommended)
+* CUDA 12.x
+* OpenCV with GStreamer support (optional, for low-latency RTSP pipelines)
+* Python 3.12
+
+---
+
+## ▶️ Run
+
+```bash
+python main.py
+```
+
+---
+
+## 🎥 Controls
+
+| Key | Action |
+|---|---|
+| `q` / `Q` / `ESC` | Quit the application |
+| `r` / `R` | Reset and redraw the Region of Interest (ROI) on-the-fly |
+| `ENTER` / `SPACE` | Save ROI and start processing (during interactive ROI setup) |
+
+---
+
+## 🚨 Alert System
+
+### Stage 1 — Detection & Tracking
+YOLOv8 segmenter detects spills, computes pixel area, and tracks objects across frames.
+
+### Stage 2 — ROI Intersection
+If the detected spill polygon intersects with your custom ROI boundary and exceeds `min_area_px`:
+* **Image Alert**: Saves a high-quality annotated JPEG to `outputs/images/` (exactly once per track ID).
+* **Video Alert**: Records a `video_duration_sec` video clip showing the incident to `outputs/videos/`.
+* **JSON Log**: Records timestamp, track ID, confidence, and contour area to `outputs/json/`.
+
+---
+
+## 📸 Output
+
+| Folder | Contents |
+|---|---|
+| `outputs/images/` | Detection screenshots (saved exactly once per track ID) |
+| `outputs/videos/` | Event-triggered H264 video clips containing overlays and masks |
+| `outputs/json/` | Serialized detection logs containing pixel area, track IDs, and timestamps |
+
+---
+
+## ⚡ Performance
+
+| Metric | Value |
+|---|---|
+| YOLO Segmentation Inference | ~8–15ms (on CUDA GPUs) |
+| Post-processing & ROI Check | ~2–5ms |
+| RTSP Read Latency | Thread-separated, frame-drop policy (0ms block on main loop) |
+| GPU Memory Footprint | ~1.5 GB to 2.5 GB (depending on model size and resolution) |
+
+---
+
+## 🧪 Engineering Decisions
+
+| Decision | Reason |
+|---|---|
+| **Interactive ROI Selection** | CCTV streams contain static areas (buildings, skies) that never leak; ROI limits false alerts. |
+| **Per-ID Deduplication** | Keeps alert directories clean by avoiding flood-saving the same leak every frame. |
+| **Threaded RTSP Reader** | Runs frame reading in a background thread to prevent GUI lagging and buffer accumulation. |
+| **JSON Logger** | Keeps a machine-readable audit trail of leaks, track IDs, and pixel areas. |
+| **On-the-Fly ROI Reset** | Allows security operators to adjust monitoring boundaries live without restarting the pipeline. |
+
+---
+
+## 🔮 Future Enhancements
+
+* 📧 Email/Slack notification integration on detection events
+* ☁️ Cloud storage synchronization (AWS S3) for alerts
+* 🌐 Web dashboard for multi-camera visualization
+* 📊 Real-time leakage area growth-rate graph visualization
+
+---
+
+<div align="center">
+Engineered by the <b>Algosium AI Team</b> · CampNeuron AI Series
+</div>
