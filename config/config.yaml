@@ -1,0 +1,43 @@
+# Master Configuration File for Oil Leak Detection
+
+model:
+  weights: "/home/vivek/Downloads/spills/models/best.pt" 
+  device: "cuda"                         
+  imgsz: 640                           
+  conf: 0.45                        
+  iou: 0.45                            
+
+  classes:
+    0: spill
+
+postprocess:
+  min_area_px: 500                     # Minimum contour area in pixels to count as detection
+
+visualization:
+  show_preview: true                   
+  preview_scale: 0.75                  # Rescale factor for preview window
+  mask_alpha: 0.4                      # Transparency of the segmentation mask overlay
+  colors:                              # BGR colors for annotations
+    oil: [0, 140, 255]                 # Orange
+
+logging:
+  level: "INFO"
+  log_file: "logs/spill_detection.log"
+
+camera:
+#   # Mode: "stream" or "image" 
+  mode: "stream"
+  
+  # source: "rtsp://admin:diffuse123@192.168.0.183:554/cam/realmonitor?channel=1&subtype=2"
+  source: /home/vivek/Downloads/spills/1.mp4
+
+  # source: 4  
+  fps_limit: 25
+  width: 1280
+  height: 720
+
+output:
+  image_dir: "outputs/images"         
+  video_dir: "outputs/videos"          
+  json_dir: "outputs/json"             
+  video_duration_sec: 5                

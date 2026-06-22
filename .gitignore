@@ -1,0 +1,30 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Logs
+logs/
+*.log
+
+# Large weights and model files
+models/best.pt
+models/checkpoint_best_ema.pth
+models/oil_spill_seg.engine
+models/oil_spill_seg.fp16.onnx
+models/oil_spill_seg.onnx
+models/oil_spill_seg.pt
+models/runs/
+models/spill_output.mp4
+
+# Local test media
+1.mp4
+
+# Run outputs
+outputs/images/*
+!outputs/images/.gitkeep
+outputs/json/*
+!outputs/json/.gitkeep
+outputs/videos/*
+!outputs/videos/.gitkeep

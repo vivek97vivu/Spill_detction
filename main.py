@@ -1,0 +1,297 @@
+import cv2
+import time
+import sys
+from pathlib import Path
+
+from src.utils.helpers import load_yaml
+from src.utils.logger import get_logger
+from src.camera.rtsp_reader import RTSPReader
+from src.detector.spill_detector import SpillDetector
+from src.roi.roi_manager import ROIManager
+from src.visualization.draw_results import draw_results
+from src.output.save_image import ImageSaver
+from src.output.save_video import VideoSaver
+from src.output.save_json import JSONSaver
+
+logger = get_logger("main")
+
+def main():
+    logger.info("Initializing Oil Leak Detection System...")
+
+    # 1. Load configuration file
+    try:
+        config = load_yaml("config/config.yaml")
+        logger.info("Configuration loaded successfully.")
+    except Exception as e:
+        logger.error(f"Error loading configuration file: {e}")
+        sys.exit(1)
+
+    # 2. Extract parameters
+    cam_settings = config["camera"]
+    mode = cam_settings.get("mode", "stream").lower()
+    
+    model_settings = config["model"]
+    class_names = {int(k): v for k, v in model_settings["classes"].items()}
+    color_map = config["visualization"]["colors"]
+    mask_alpha = config["visualization"].get("mask_alpha", 0.4)
+    show_preview = config["visualization"].get("show_preview", True)
+    preview_scale = config["visualization"].get("preview_scale", 1.0)
+    min_area_px = config["postprocess"].get("min_area_px", 500)
+
+    # Output Savers Configurations
+    output_cfg = config.get("output", {})
+    image_dir = output_cfg.get("image_dir", "outputs/images")
+    video_dir = output_cfg.get("video_dir", "outputs/videos")
+    json_dir = output_cfg.get("json_dir", "outputs/json")
+    video_duration_sec = output_cfg.get("video_duration_sec", 5)
+
+    # Instantiate detector and savers
+    try:
+        # Spill Detector
+        detector = SpillDetector(
+            weights_path=model_settings["weights"],
+            device=model_settings["device"],
+            imgsz=model_settings.get("imgsz", 640),
+            conf=model_settings.get("conf", 0.45),
+            iou=model_settings.get("iou", 0.45)
+        )
+
+        # Region of Interest (ROI) Manager
+        roi_manager = ROIManager("config/roi.yaml")
+
+        # Savers
+        image_saver = ImageSaver(image_dir)
+        json_saver = JSONSaver(json_dir)
+
+    except Exception as e:
+        logger.exception(f"Initialization of core components failed: {e}")
+        sys.exit(1)
+
+    # ─────────────────────────────────────────────────────────────
+    # SINGLE IMAGE MODE
+    # ─────────────────────────────────────────────────────────────
+    if mode == "image":
+        logger.info("Running in Single Image Mode.")
+        image_source = cam_settings["source"]
+        
+        # Load static image
+        frame = cv2.imread(image_source)
+        if frame is None:
+            logger.error(f"Failed to read image source: {image_source}. Make sure file path is correct.")
+            sys.exit(1)
+
+        logger.info(f"Loaded image: {image_source}. Opening ROI selection window...")
+        roi_manager.select_roi_interactively(frame)
+
+        # Spill segmentation
+        raw_detections = detector.detect_spills(
+            frame,
+            min_area_px=min_area_px,
+            class_names=class_names
+        )
+
+        # ROI filtering
+        detections = roi_manager.filter_detections(raw_detections)
+
+        # Render overlays
+        annotated_frame = draw_results(
+            frame,
+            detections,
+            roi_manager=roi_manager,
+            color_map=color_map,
+            mask_alpha=mask_alpha
+        )
+
+        # Save image and JSON log
+        if len(detections) > 0:
+            image_saver.save(annotated_frame, name_prefix="detection_img")
+            json_saver.log_detections(detections)
+            json_saver.save()
+            logger.info("Detection saved to outputs.")
+        else:
+            logger.info("No spills detected inside the ROI.")
+
+        # Show preview window
+        if show_preview:
+            try:
+                h, w = annotated_frame.shape[:2]
+                w_scaled = int(w * preview_scale)
+                h_scaled = int(h * preview_scale)
+                preview = cv2.resize(annotated_frame, (w_scaled, h_scaled))
+                
+                logger.info("Displaying annotated image preview. Press any key in the window to exit.")
+                cv2.imshow("Oil Leak Detection - Single Image", preview)
+                cv2.waitKey(0)
+            except cv2.error as e:
+                logger.warning(f"Failed to display GUI window (preview unavailable): {e}")
+
+        cv2.destroyAllWindows()
+        logger.info("Single image processing complete.")
+        return
+
+    # ─────────────────────────────────────────────────────────────
+    # REAL-TIME STREAM MODE (Webcam / Video file / RTSP Feed)
+    # ─────────────────────────────────────────────────────────────
+    elif mode == "stream":
+        logger.info("Running in Stream Mode (Live RTSP / Video file).")
+        fps = cam_settings.get("fps_limit", 10)
+        
+        try:
+            reader = RTSPReader(
+                source=cam_settings["source"],
+                width=cam_settings.get("width"),
+                height=cam_settings.get("height"),
+                fps_limit=fps
+            )
+        except Exception as e:
+            logger.exception(f"Failed to initialize Camera Reader: {e}")
+            sys.exit(1)
+
+        # Start threaded reader
+        reader.start()
+        logger.info("Waiting for first camera frame...")
+        
+        first_frame = None
+        for _ in range(50):
+            ret, frame = reader.read()
+            if ret and frame is not None:
+                first_frame = frame
+                break
+            time.sleep(0.1)
+
+        if first_frame is not None:
+            logger.info("First frame captured successfully. Starting ROI selection...")
+            roi_manager.select_roi_interactively(first_frame)
+        else:
+            logger.error("Failed to capture first frame for ROI selection. Skipping ROI selection.")
+
+        video_saver = None
+        is_recording = False
+        video_frames_left = 0
+        saved_track_ids = set()
+        last_no_track_save_time = 0
+
+        logger.info("Oil Leak Detection pipeline running. Controls in preview window:")
+        logger.info(" - 'q' key: Exit application")
+        logger.info(" - 'r' key: Redraw Region of Interest (ROI) on-the-fly")
+
+        try:
+            while True:
+                ret, frame = reader.read()
+                if not ret or frame is None:
+                    # Sleep briefly if reader doesn't have a new frame yet
+                    time.sleep(0.01)
+                    continue
+
+                # Spill segmentation and tracking
+                raw_detections = detector.detect_spills(
+                    frame,
+                    min_area_px=min_area_px,
+                    class_names=class_names
+                )
+
+                # Region of Interest (ROI) filtering
+                detections = roi_manager.filter_detections(raw_detections)
+
+                # Render overlays
+                annotated_frame = draw_results(
+                    frame,
+                    detections,
+                    roi_manager=roi_manager,
+                    color_map=color_map,
+                    mask_alpha=mask_alpha
+                )
+
+                # Handle detection actions
+                if len(detections) > 0:
+                    should_save_image = False
+                    for det in detections:
+                        track_id = det.get("track_id")
+                        if track_id is not None:
+                            if track_id not in saved_track_ids:
+                                saved_track_ids.add(track_id)
+                                should_save_image = True
+                        else:
+                            current_time = time.time()
+                            if current_time - last_no_track_save_time > 10:
+                                last_no_track_save_time = current_time
+                                should_save_image = True
+
+                    if should_save_image:
+                        image_saver.save(annotated_frame, name_prefix="detection")
+
+                    json_saver.log_detections(detections)
+
+                    # Trigger video recording
+                    if not is_recording:
+                        h, w = frame.shape[:2]
+                        video_saver = VideoSaver(
+                            output_dir=video_dir,
+                            fps=fps,
+                            width=w,
+                            height=h
+                        )
+                        video_saver.start()
+                        is_recording = True
+                        video_frames_left = int(video_duration_sec * fps)
+
+                # Write frame to active recording
+                if is_recording and video_saver is not None:
+                    video_saver.write(annotated_frame)
+                    video_frames_left -= 1
+                    
+                    if video_frames_left <= 0:
+                        video_saver.release()
+                        video_saver = None
+                        is_recording = False
+                        logger.info(f"Finished recording {video_duration_sec}-second detection video clip.")
+
+                # Show live preview
+                if show_preview:
+                    try:
+                        h, w = annotated_frame.shape[:2]
+                        w_scaled = int(w * preview_scale)
+                        h_scaled = int(h * preview_scale)
+                        preview = cv2.resize(annotated_frame, (w_scaled, h_scaled))
+                        
+                        cv2.imshow("Oil Leak Detection Preview", preview)
+                        key = cv2.waitKey(1) & 0xFF
+                        
+                        if key == ord('q') or key == ord('Q'):
+                            logger.info("User requested exit.")
+                            break
+                        elif key == ord('r') or key == ord('R'):
+                            logger.info("Reset ROI requested. Opening interactive drawing window...")
+                            success, current_frame = reader.read()
+                            if success and current_frame is not None:
+                                cv2.destroyWindow("Oil Leak Detection Preview")
+                                roi_manager.select_roi_interactively(current_frame)
+                                saved_track_ids.clear()
+                            else:
+                                logger.error("Failed to capture latest frame for ROI selection.")
+                                
+                    except cv2.error as e:
+                        logger.warning(f"Failed to display GUI window (disabled show_preview): {e}")
+                        show_preview = False
+
+        except KeyboardInterrupt:
+            logger.info("Keyboard interrupt received.")
+        except Exception as e:
+            logger.exception(f"Unhandled exception in pipeline: {e}")
+        finally:
+            logger.info("Stopping and cleaning up components...")
+            reader.release()
+            
+            if video_saver:
+                video_saver.release()
+                
+            json_saver.save()
+            cv2.destroyAllWindows()
+            logger.info("Shutdown process complete.")
+            
+    else:
+        logger.error(f"Invalid camera mode configured: '{mode}'. Must be 'stream' or 'image'.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
