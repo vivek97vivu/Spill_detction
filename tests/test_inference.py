@@ -51,3 +51,22 @@ def test_roi_manager_filtering():
     assert len(filtered) == 1
     assert filtered[0]["bbox"] == [150, 150, 200, 200]
     assert filtered[0]["roi_name"] == "zone_1"
+
+def test_dual_model_inference():
+    # Test that the detector can load both main and person models
+    detector = SpillDetector(
+        weights_path="models/best.pt",
+        person_weights_path="models/yolo26s.pt",
+        device="cpu",
+        imgsz=640,
+        conf=0.45,
+        iou=0.45
+    )
+    assert detector.model is not None
+    assert detector.person_model is not None
+    
+    # Test inference on a blank dummy frame
+    dummy_frame = np.zeros((640, 640, 3), dtype=np.uint8)
+    detections = detector.detect_spills(dummy_frame)
+    assert isinstance(detections, list)
+

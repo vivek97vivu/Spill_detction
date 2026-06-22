@@ -50,6 +50,7 @@ def main():
         # Spill Detector
         detector = SpillDetector(
             weights_path=model_settings["weights"],
+            person_weights_path=model_settings.get("person_weights"),
             device=model_settings["device"],
             imgsz=model_settings.get("imgsz", 640),
             conf=model_settings.get("conf", 0.45),
@@ -102,12 +103,13 @@ def main():
             mask_alpha=mask_alpha
         )
 
-        # Save image and JSON log
-        if len(detections) > 0:
+        # Save image and JSON log only if a spill is detected
+        spill_detections = [d for d in detections if d.get("class_name") == "Spill"]
+        if len(spill_detections) > 0:
             image_saver.save(annotated_frame, name_prefix="detection_img")
-            json_saver.log_detections(detections)
+            json_saver.log_detections(spill_detections)
             json_saver.save()
-            logger.info("Detection saved to outputs.")
+            logger.info("Spill detection saved to outputs.")
         else:
             logger.info("No spills detected inside the ROI.")
 
@@ -202,10 +204,11 @@ def main():
                     mask_alpha=mask_alpha
                 )
 
-                # Handle detection actions
-                if len(detections) > 0:
+                # Handle detection actions (alerts and recording trigger only for Spills)
+                spill_detections = [d for d in detections if d.get("class_name") == "Spill"]
+                if len(spill_detections) > 0:
                     should_save_image = False
-                    for det in detections:
+                    for det in spill_detections:
                         track_id = det.get("track_id")
                         if track_id is not None:
                             if track_id not in saved_track_ids:
@@ -220,7 +223,7 @@ def main():
                     if should_save_image:
                         image_saver.save(annotated_frame, name_prefix="detection")
 
-                    json_saver.log_detections(detections)
+                    json_saver.log_detections(spill_detections)
 
                     # Trigger video recording
                     if not is_recording:

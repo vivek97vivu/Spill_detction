@@ -2,6 +2,7 @@
 
 model:
   weights: "/home/vivek/Downloads/spills/models/best.pt" 
+  person_weights: "models/yolo26s.pt"
   device: "cuda"                         
   imgsz: 640                           
   conf: 0.45                        
@@ -19,9 +20,9 @@ visualization:
   preview_scale: 0.75                  # Rescale factor for preview window
   mask_alpha: 0.4                      # Transparency of the segmentation mask overlay
   colors:                              # BGR colors for annotations
-    Person: [0, 255, 0]                # Green
-    Spill: [0, 140, 255]               # Orange
-    oil: [0, 140, 255]                 # (Fallback for backward compatibility)
+    Person: [0, 255, 255]              # Yellow (BGR)
+    Spill: [255, 0, 0]                 # Blue (BGR)
+    oil: [255, 0, 0]                   # Blue (BGR)
 
 logging:
   level: "INFO"

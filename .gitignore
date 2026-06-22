@@ -17,6 +17,7 @@ models/oil_spill_seg.onnx
 models/oil_spill_seg.pt
 models/runs/
 models/spill_output.mp4
+models/yolo26s.pt
 
 # Local test media
 1.mp4
