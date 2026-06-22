@@ -8,7 +8,8 @@ model:
   iou: 0.45                            
 
   classes:
-    0: spill
+    0: Person
+    1: Spill
 
 postprocess:
   min_area_px: 500                     # Minimum contour area in pixels to count as detection
@@ -18,7 +19,9 @@ visualization:
   preview_scale: 0.75                  # Rescale factor for preview window
   mask_alpha: 0.4                      # Transparency of the segmentation mask overlay
   colors:                              # BGR colors for annotations
-    oil: [0, 140, 255]                 # Orange
+    Person: [0, 255, 0]                # Green
+    Spill: [0, 140, 255]               # Orange
+    oil: [0, 140, 255]                 # (Fallback for backward compatibility)
 
 logging:
   level: "INFO"
