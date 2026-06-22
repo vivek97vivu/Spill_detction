@@ -25,15 +25,15 @@ A **production-grade AI pipeline** built for **real-time CCTV / RTSP monitoring*
 ## Project Structure
 ```
 ├── config/
-│   ├── config.yaml          # Unified model, camera, and output settings
-│   └── roi.yaml             # Cached Region of Interest (ROI) polygon boundaries
+│   ├── config.yaml          
+│   └── roi.yaml             
 │
 ├── models/
-│   └── oil_spill_seg.engine # GPU-accelerated TensorRT engine weights
+│   └── oil_spill_seg.engine 
 │
 ├── src/
 │   ├── camera/
-│   │   └── rtsp_reader.py   # Threaded camera frame reader supporting standard & GStreamer streams
+│   │   └── rtsp_reader.py  
 │   ├── detector/
 │   │   └── spill_detector.py# YOLO tracking and segmentation wrapper
 │   ├── roi/
@@ -41,21 +41,21 @@ A **production-grade AI pipeline** built for **real-time CCTV / RTSP monitoring*
 │   ├── visualization/
 │   │   └── draw_results.py  # Annotation and overlay drawing
 │   ├── output/
-│   │   ├── save_image.py    # Image screenshot saver (1 per unique track ID)
-│   │   ├── save_video.py    # Custom duration video clip recorder on detection
-│   │   └── save_json.py     # JSON logs history writer
+│   │   ├── save_image.py    
+│   │   ├── save_video.py    
+│   │   └── save_json.py     
 │   └── utils/
 │       ├── logger.py        # Rotating log recorder
 │       └── helpers.py       # YAML parser utilities
 │
 ├── outputs/
-│   ├── images/              # Custom folder path for screenshots (default)
-│   ├── videos/              # Custom folder path for video clips (default)
-│   └── json/                # Custom folder path for JSON logs (default)
+│   ├── images/             
+│   ├── videos/              
+│   └── json/                
 │
-├── logs/                    # Rotating log files
-├── main.py                  # Main entry point
-└── requirements.txt         # Project dependencies
+├── logs/                    
+├── main.py                  
+└── requirements.txt        
 ```
 
 ## Quick Start
