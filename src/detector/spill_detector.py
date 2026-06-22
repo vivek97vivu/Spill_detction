@@ -70,14 +70,15 @@ class SpillDetector:
     def detect_spills(self, frame: np.ndarray, min_area_px: int = 500, class_names: dict = None) -> list[dict]:
         """Runs tracking and postprocesses outputs into structured dictionaries.
         
-        If a person is detected in the frame by the person model, we skip the spill model
-        for this frame and return only the person detections.
-        Otherwise, we run the spill model and return spill detections.
+        Runs the person model to find people and the spill model to find spills.
+        Filters out any spill detections that overlap significantly with detected persons
+        to prevent false positive spill alerts on people.
         """
         detections = []
         h, w = frame.shape[:2]
 
-        person_detected = False
+        # 1. Run Person Detection (yolo26s.pt)
+        person_boxes = []
         if self.person_model is not None:
             person_results = self.person_model.predict(
                 source=frame,
@@ -95,6 +96,7 @@ class SpillDetector:
                     if cls_id == 0:
                         conf = float(box.conf[0])
                         bbox = box.xyxy[0].tolist()
+                        person_boxes.append(bbox)
                         
                         track_id = None
                         if box.id is not None:
@@ -119,13 +121,8 @@ class SpillDetector:
                             "polygon": polygon,
                             "track_id": track_id
                         })
-                        person_detected = True
 
-        # If a person was detected, bypass spill model to eliminate false positives
-        if person_detected:
-            return detections
-
-        # Otherwise run main spill model (best.pt)
+        # 2. Run Spill Detection (best.pt)
         result = self.track(frame, persist=True)
         if result.boxes is None:
             return detections
@@ -140,6 +137,28 @@ class SpillDetector:
 
             conf = float(box.conf[0])
             bbox = box.xyxy[0].tolist()
+
+            # Check if this spill box overlaps with any detected person to filter out false positives
+            is_false_positive = False
+            for p_box in person_boxes:
+                # Calculate intersection over spill box area
+                x1 = max(bbox[0], p_box[0])
+                y1 = max(bbox[1], p_box[1])
+                x2 = min(bbox[2], p_box[2])
+                y2 = min(bbox[3], p_box[3])
+                
+                if x2 > x1 and y2 > y1:
+                    inter_area = (x2 - x1) * (y2 - y1)
+                    spill_area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+                    if spill_area > 0:
+                        overlap_ratio = inter_area / spill_area
+                        if overlap_ratio > 0.4:  # 40% overlap threshold
+                            is_false_positive = True
+                            break
+
+            if is_false_positive:
+                logger.info("Filtered out a false positive spill detection overlapping with a person.")
+                continue
 
             track_id = None
             if box.id is not None:
@@ -185,5 +204,6 @@ class SpillDetector:
             })
 
         return detections
+
 
 
