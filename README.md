@@ -1,6 +1,26 @@
-# Oil Leak Detection System
+<div align="center">
 
-A modular YOLOv8 segmentation and tracking pipeline for real-time oil leak detection.
+# 🛢️ **Spill & Leak Detection Engine**
+
+### 🚨 Real-Time Oil & Chemical Leak Detection for Industrial CCTV Systems
+
+A **production-grade AI pipeline** built for **real-time CCTV / RTSP monitoring**, combining **fast YOLO segmentation + custom tracking** for high-precision alerts.
+
+> ⚙️ Powered by **YOLOv8 TensorRT (Segmentation & Tracking)**
+> 🧠 Designed for **low false positives, high reliability deployments**
+> 🧩 Part of the **CampNeuron AI Series** — engineered by the **Algosium AI Team**
+
+---
+
+[![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)](#)
+[![CUDA](https://img.shields.io/badge/CUDA-12.x-green?logo=nvidia&logoColor=white)](#)
+[![YOLO](https://img.shields.io/badge/YOLO-TensorRT-success?logo=nvidia&logoColor=white)](#)
+[![GStreamer](https://img.shields.io/badge/GStreamer-H264/H265-blue)](#)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20|%20x86__64-lightgrey?logo=linux&logoColor=white)](#)
+
+</div>
+
+---
 
 ## Project Structure
 ```
