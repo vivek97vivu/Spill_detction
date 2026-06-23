@@ -29,7 +29,7 @@ A **production-grade AI pipeline** built for **real-time CCTV / RTSP monitoring*
 | 🛢️ **YOLOv8 Segmentation** | Real-time leak segmentation and class tracking (`spill`) |
 | 🛡️ **Interactive ROI Manager** | Mouse-click polygon drawing window to isolate detection zones |
 | 🎥 **Threaded RTSP Reader** | Low-latency H264/H265 hardware-accelerated GStreamer & RTSP reader |
-| 🔁 **Unique Track Filtering** | Deduplication to save exactly one screenshot per unique spill track ID |
+| 🔁 **Unique Track Filtering** | Deduplication to save exactly one screenshot, one JSON report, and one video clip per unique track ID |
 | 📝 **JSON Logger** | Auto-saving structured records of detections, track IDs, and pixel area metrics |
 | ⚙️ **YAML Config Engine** | Centrally managed settings for camera inputs, thresholds, and outputs |
 
@@ -61,10 +61,12 @@ Camera (RTSP Stream / Webcam / Video File / Static Image)
 * 🛡️ **Interactive ROI Selector**: Graphically draw polygon boundaries on startup to filter out irrelevant areas (caching coordinates to `config/roi.yaml`).
 * 🔄 **On-the-Fly ROI Resetting**: Press `R` on the live window to redraw the ROI on the latest frame without restarting the pipeline.
 * ⚡ **GStreamer H264/H265 Support**: Decodes RTSP streams with high efficiency and lower latency.
-* 🔁 **Redundancy Filter**: Prevents alert flooding by saving exactly one crop/screenshot per unique track ID.
-* 🎥 **Custom Event Recording**: Records a video clip of configurable length (e.g., 5s) showing bounding boxes and masks when a spill enters the ROI.
+* 🔁 **Redundancy Filter**: Prevents alert flooding by saving exactly one screenshot, one JSON report, and one video clip per unique track ID.
+* 🎥 **Custom Track Recording**: Records a track-specific video clip of configurable length (e.g., 5s) showing bounding boxes and masks when a new spill is detected in the ROI, supporting concurrent recordings for multiple spills.
 * 🔌 **Auto-Reconnection**: The RTSP reader automatically reconnects if the camera feed drops.
-* 📂 **Structured JSON Logging**: Auto-saves timestamps, areas, and confidence metadata for audit trails.
+* 📂 **Structured JSON Logging**: Saves individual JSON reports and session history tracking timestamps, areas, and confidence metadata for audit trails.
+* 🖥️ **Headless GUI Fallback**: Robustly catches display/GUI exceptions on server environments to reuse previously configured ROIs instead of crashing.
+* 🏷️ **Track ID Annotation**: Displays track IDs (e.g., `Spill #5`) directly on the live overlay and saved screenshots for easy auditing.
 
 ---
 
@@ -194,9 +196,9 @@ YOLOv8 segmenter detects spills, computes pixel area, and tracks objects across 
 
 ### Stage 2 — ROI Intersection
 If the detected spill polygon intersects with your custom ROI boundary and exceeds `min_area_px`:
-* **Image Alert**: Saves a high-quality annotated JPEG to `outputs/images/` (exactly once per track ID).
-* **Video Alert**: Records a `video_duration_sec` video clip showing the incident to `outputs/videos/`.
-* **JSON Log**: Records timestamp, track ID, confidence, and contour area to `outputs/json/`.
+* **Image Alert**: Saves a high-quality annotated JPEG showing the first appearance of the spill to `outputs/images/` (exactly once per track ID, named `spill_track_{track_id}_{timestamp}.jpg`).
+* **Video Alert**: Starts recording a `video_duration_sec` track-specific video clip showing the incident to `outputs/videos/` (exactly once per track ID, named `spill_track_{track_id}_{timestamp}.mp4`).
+* **JSON Log**: Saves an individual JSON report detailing the incident to `outputs/json/` (exactly once per track ID, named `spill_track_{track_id}_{timestamp}.json`).
 
 ---
 
@@ -226,10 +228,11 @@ If the detected spill polygon intersects with your custom ROI boundary and excee
 | Decision | Reason |
 |---|---|
 | **Interactive ROI Selection** | CCTV streams contain static areas (buildings, skies) that never leak; ROI limits false alerts. |
-| **Per-ID Deduplication** | Keeps alert directories clean by avoiding flood-saving the same leak every frame. |
+| **Per-ID Deduplication** | Keeps alert directories clean by avoiding flood-saving the same leak every frame, enforcing exactly one image, one JSON report, and one video clip per spill track ID. |
 | **Threaded RTSP Reader** | Runs frame reading in a background thread to prevent GUI lagging and buffer accumulation. |
 | **JSON Logger** | Keeps a machine-readable audit trail of leaks, track IDs, and pixel areas. |
 | **On-the-Fly ROI Reset** | Allows security operators to adjust monitoring boundaries live without restarting the pipeline. |
+| **Headless GUI Fallback** | Prevents pipeline crashes in remote or automated headless server runs by gracefully catching GUI display errors and reusing loaded config. |
 
 ---
 
