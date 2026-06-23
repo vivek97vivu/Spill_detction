@@ -40,8 +40,12 @@ def draw_results(frame: np.ndarray, detections: list[dict], roi_manager=None, co
         # Draw bounding box
         cv2.rectangle(out, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
 
-        # Build text label (name, conf, area, and roi_name)
-        label = f"{name} {conf:.2f} ({area}px)"
+        # Build text label (name, track_id, conf, area, and roi_name)
+        track_id = det.get("track_id")
+        if track_id is not None:
+            label = f"{name} #{track_id} {conf:.2f} ({area}px)"
+        else:
+            label = f"{name} {conf:.2f} ({area}px)"
         if roi_name:
             label += f" inside {roi_name}"
 

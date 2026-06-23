@@ -17,10 +17,10 @@ class VideoSaver:
         self.writer = None
         self.filepath = None
 
-    def start(self):
+    def start(self, filename_prefix: str = "session"):
         """Initializes VideoWriter with dynamic timestamped filename."""
         timestamp = int(time.time())
-        self.filepath = self.output_dir / f"session_{timestamp}.mp4"
+        self.filepath = self.output_dir / f"{filename_prefix}_{timestamp}.mp4"
         fourcc = cv2.VideoWriter_fourcc(*self.codec)
         self.writer = cv2.VideoWriter(
             str(self.filepath),

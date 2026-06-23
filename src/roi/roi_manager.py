@@ -98,43 +98,46 @@ class ROIManager:
                 self._draw_temp_polygon(display_frame, frame, points)
                 cv2.imshow(window_name, display_frame)
 
-        cv2.namedWindow(window_name)
-        cv2.setMouseCallback(window_name, mouse_callback)
-        cv2.imshow(window_name, display_frame)
+        try:
+            cv2.namedWindow(window_name)
+            cv2.setMouseCallback(window_name, mouse_callback)
+            cv2.imshow(window_name, display_frame)
 
-        while True:
-            key = cv2.waitKey(20) & 0xFF
-            
-            # Enter or Space key to finish
-            if key == 13 or key == 32:
-                if len(points) >= 3:
-                    self.rois = [{
-                        "name": "",
-                        "polygon": np.array(points, dtype=np.int32)
-                    }]
-                    self.save_rois()
+            while True:
+                key = cv2.waitKey(20) & 0xFF
+                
+                # Enter or Space key to finish
+                if key == 13 or key == 32:
+                    if len(points) >= 3:
+                        self.rois = [{
+                            "name": "",
+                            "polygon": np.array(points, dtype=np.int32)
+                        }]
+                        self.save_rois()
+                        break
+                    elif has_previous and not points:
+                        # User didn't click anything but pressed Enter, reuse the cached ROI
+                        logger.info("Reusing previous manual ROI configuration.")
+                        break
+                    else:
+                        logger.warning("Please click at least 3 points before pressing Enter.")
+
+                # Clear points
+                elif key == ord('c') or key == ord('C'):
+                    points.clear()
+                    display_frame = frame.copy()
+                    cv2.imshow(window_name, display_frame)
+                    logger.info("Cleared drawn ROI points.")
+
+                # Esc or Q to skip
+                elif key == 27 or key == ord('q') or key == ord('Q'):
+                    logger.info("ROI selection skipped. System will run on full frame.")
+                    self.rois = []
                     break
-                elif has_previous and not points:
-                    # User didn't click anything but pressed Enter, reuse the cached ROI
-                    logger.info("Reusing previous manual ROI configuration.")
-                    break
-                else:
-                    logger.warning("Please click at least 3 points before pressing Enter.")
 
-            # Clear points
-            elif key == ord('c') or key == ord('C'):
-                points.clear()
-                display_frame = frame.copy()
-                cv2.imshow(window_name, display_frame)
-                logger.info("Cleared drawn ROI points.")
-
-            # Esc or Q to skip
-            elif key == 27 or key == ord('q') or key == ord('Q'):
-                logger.info("ROI selection skipped. System will run on full frame.")
-                self.rois = []
-                break
-
-        cv2.destroyWindow(window_name)
+            cv2.destroyWindow(window_name)
+        except cv2.error as e:
+            logger.warning(f"Interactive ROI selection window could not be opened: {e}. Reusing loaded ROI or proceeding.")
 
     def _draw_temp_polygon(self, draw_img: np.ndarray, orig_img: np.ndarray, pts: list[tuple[int, int]]):
         """Draws temporary points and lines for the user during interactive selection."""

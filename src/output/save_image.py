@@ -11,9 +11,10 @@ class ImageSaver:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def save(self, frame, name_prefix: str = "detection") -> Path:
+    def save(self, frame, name_prefix: str = "detection", timestamp: int = None) -> Path:
         """Saves a frame to the outputs directory with a millisecond timestamp."""
-        timestamp = int(time.time() * 1000)
+        if timestamp is None:
+            timestamp = int(time.time() * 1000)
         filename = self.output_dir / f"{name_prefix}_{timestamp}.jpg"
         cv2.imwrite(str(filename), frame)
         logger.info(f"Saved image: {filename.absolute()}")

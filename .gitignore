@@ -21,6 +21,7 @@ models/yolo26s.pt
 
 # Local test media
 1.mp4
+2.mp4
 
 # Run outputs
 outputs/images/*

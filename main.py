@@ -106,10 +106,13 @@ def main():
         # Save image and JSON log only if a spill is detected
         spill_detections = [d for d in detections if d.get("class_name") == "Spill"]
         if len(spill_detections) > 0:
-            image_saver.save(annotated_frame, name_prefix="detection_img")
+            timestamp_ms = int(time.time() * 1000)
+            image_saver.save(annotated_frame, name_prefix="detection_img", timestamp=timestamp_ms)
+            json_saver.save_individual_report(spill_detections, filename_prefix="detection_img", timestamp_ms=timestamp_ms)
+            # Log to session tracker and save report
             json_saver.log_detections(spill_detections)
             json_saver.save()
-            logger.info("Spill detection saved to outputs.")
+            logger.info("Spill detection snapshot and JSON saved to outputs.")
         else:
             logger.info("No spills detected inside the ROI.")
 
@@ -167,11 +170,9 @@ def main():
         else:
             logger.error("Failed to capture first frame for ROI selection. Skipping ROI selection.")
 
-        video_saver = None
-        is_recording = False
-        video_frames_left = 0
-        saved_track_ids = set()
-        last_no_track_save_time = 0
+        processed_track_ids = set()
+        active_videos = {}
+        untracked_counter = 90000
 
         logger.info("Oil Leak Detection pipeline running. Controls in preview window:")
         logger.info(" - 'q' key: Exit application")
@@ -206,48 +207,56 @@ def main():
 
                 # Handle detection actions (alerts and recording trigger only for Spills)
                 spill_detections = [d for d in detections if d.get("class_name") == "Spill"]
-                if len(spill_detections) > 0:
-                    should_save_image = False
-                    for det in spill_detections:
-                        track_id = det.get("track_id")
-                        if track_id is not None:
-                            if track_id not in saved_track_ids:
-                                saved_track_ids.add(track_id)
-                                should_save_image = True
-                        else:
-                            current_time = time.time()
-                            if current_time - last_no_track_save_time > 10:
-                                last_no_track_save_time = current_time
-                                should_save_image = True
+                for det in spill_detections:
+                    track_id = det.get("track_id")
+                    if track_id is None:
+                        # Fallback for untracked spills to ensure they have a unique track ID
+                        track_id = f"untracked_{untracked_counter}"
+                        untracked_counter += 1
+                        det["track_id"] = track_id
 
-                    if should_save_image:
-                        image_saver.save(annotated_frame, name_prefix="detection")
+                    if track_id not in processed_track_ids:
+                        processed_track_ids.add(track_id)
+                        logger.info(f"New spill detected! Track ID: {track_id}")
 
-                    json_saver.log_detections(spill_detections)
+                        # 1. Save one image showing the first appearance of the spill
+                        timestamp_ms = int(time.time() * 1000)
+                        image_name_prefix = f"spill_track_{track_id}"
+                        image_saver.save(annotated_frame, name_prefix=image_name_prefix, timestamp=timestamp_ms)
 
-                    # Trigger video recording
-                    if not is_recording:
+                        # 2. Save one JSON report
+                        json_saver.save_individual_report([det], filename_prefix=image_name_prefix, timestamp_ms=timestamp_ms)
+
+                        # Also log to session history
+                        json_saver.log_detections([det])
+
+                        # 3. Start recording a video clip for that spill event
                         h, w = frame.shape[:2]
-                        video_saver = VideoSaver(
+                        vid_saver = VideoSaver(
                             output_dir=video_dir,
                             fps=fps,
                             width=w,
                             height=h
                         )
-                        video_saver.start()
-                        is_recording = True
-                        video_frames_left = int(video_duration_sec * fps)
+                        vid_saver.start(filename_prefix=image_name_prefix)
+                        active_videos[track_id] = {
+                            "saver": vid_saver,
+                            "frames_left": int(video_duration_sec * fps)
+                        }
 
-                # Write frame to active recording
-                if is_recording and video_saver is not None:
-                    video_saver.write(annotated_frame)
-                    video_frames_left -= 1
+                # Write frame to all active video recordings
+                if active_videos:
+                    finished_tracks = []
+                    for t_id, video_info in active_videos.items():
+                        video_info["saver"].write(annotated_frame)
+                        video_info["frames_left"] -= 1
+                        if video_info["frames_left"] <= 0:
+                            video_info["saver"].release()
+                            finished_tracks.append(t_id)
+                            logger.info(f"Finished recording {video_duration_sec}-second video clip for track ID {t_id}.")
                     
-                    if video_frames_left <= 0:
-                        video_saver.release()
-                        video_saver = None
-                        is_recording = False
-                        logger.info(f"Finished recording {video_duration_sec}-second detection video clip.")
+                    for t_id in finished_tracks:
+                        active_videos.pop(t_id)
 
                 # Show live preview
                 if show_preview:
@@ -269,7 +278,7 @@ def main():
                             if success and current_frame is not None:
                                 cv2.destroyWindow("Oil Leak Detection Preview")
                                 roi_manager.select_roi_interactively(current_frame)
-                                saved_track_ids.clear()
+                                processed_track_ids.clear()
                             else:
                                 logger.error("Failed to capture latest frame for ROI selection.")
                                 
@@ -285,8 +294,9 @@ def main():
             logger.info("Stopping and cleaning up components...")
             reader.release()
             
-            if video_saver:
-                video_saver.release()
+            for t_id, video_info in active_videos.items():
+                video_info["saver"].release()
+            active_videos.clear()
                 
             json_saver.save()
             cv2.destroyAllWindows()
