@@ -76,20 +76,20 @@ Camera (RTSP Stream / Webcam / Video File / Static Image)
 ```bash
 spills/
 ├── config/
-│   ├── config.yaml             # Main configuration file (model, camera, output parameters)
-│   └── roi.yaml                # Cached ROI coordinates
+│   ├── config.yaml            
+│   └── roi.yaml              
 │
 ├── models/
-│   └── checkpoint_best_ema(2).pth  # RF-DETR model checkpoint file
+│   └── checkpoint_best_ema(2).pth 
 │
 ├── outputs/
-│   ├── images/                 # Confirmed spill screenshots
-│   ├── json/                   # Audit log files
-│   └── videos/                 # Confirmed spill video recordings
+│   ├── images/                
+│   ├── json/                   
+│   └── videos/                 
 │
 ├── src/
 │   ├── camera/
-│   │   └── rtsp_reader.py      # Threaded frame reader (supporting standard/GStreamer)
+│   │   └── rtsp_reader.py     
 │   ├── detector/
 │   │   └── spill_detector.py   # Model wrapper supporting both YOLO and RF-DETR
 │   ├── roi/
@@ -97,14 +97,14 @@ spills/
 │   ├── visualization/
 │   │   └── draw_results.py     # Renders bbox overlays and status indicators
 │   ├── output/
-│   │   ├── save_image.py       # Alert screenshot saver (1 per unique ID)
-│   │   ├── save_video.py       # Temporary clip writer for detection events
-│   │   └── save_json.py        # Periodic JSON history logger
+│   │   ├── save_image.py      
+│   │   ├── save_video.py       
+│   │   └── save_json.py     
 │   └── utils/
-│       ├── logger.py           # Rotating log configuration
-│       └── helpers.py          # YAML loading helpers
+│       ├── logger.py          
+│       └── helpers.py         
 │
-├── main.py                     # Main application entry point
+├── main.py                    
 └── README.md
 ```
 
