@@ -70,3 +70,21 @@ def test_dual_model_inference():
     detections = detector.detect_spills(dummy_frame)
     assert isinstance(detections, list)
 
+def test_rfdetr_inference():
+    # Test that the detector can load RF-DETR model and perform inference
+    detector = SpillDetector(
+        weights_path="models/checkpoint_best_ema(2).pth",
+        device="cpu",
+        imgsz=640,
+        conf=0.45,
+        iou=0.45
+    )
+    assert detector.model is not None
+    assert detector.is_rfdetr is True
+    
+    # Test inference on a blank dummy frame
+    dummy_frame = np.zeros((640, 640, 3), dtype=np.uint8)
+    detections = detector.detect_spills(dummy_frame)
+    assert isinstance(detections, list)
+
+

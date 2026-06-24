@@ -18,6 +18,8 @@ models/oil_spill_seg.pt
 models/runs/
 models/spill_output.mp4
 models/yolo26s.pt
+models
+
 
 # Local test media
 1.mp4
@@ -30,3 +32,4 @@ outputs/json/*
 !outputs/json/.gitkeep
 outputs/videos/*
 !outputs/videos/.gitkeep
+outputs

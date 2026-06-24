@@ -1,8 +1,8 @@
 # Master Configuration File for Oil Leak Detection
 
 model:
-  weights: "/home/vivek/Downloads/spills/models/best.pt" 
-  person_weights: "models/yolo26s.pt"
+  weights: "models/checkpoint_best_ema(2).pth" 
+  person_weights: null
   device: "cuda"                         
   imgsz: 640                           
   conf: 0.45                        
@@ -33,7 +33,7 @@ camera:
   mode: "stream"
   
   # source: "rtsp://admin:diffuse123@192.168.0.183:554/cam/realmonitor?channel=1&subtype=2"
-  source: /home/vivek/Downloads/spills/1.mp4
+  source: /home/vivek/Downloads/spills/2.mp4
   # source: 4
 
   # source: 4  
