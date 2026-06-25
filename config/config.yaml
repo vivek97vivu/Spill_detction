@@ -10,7 +10,7 @@ model:
 
   classes:
     0: Person
-    1: Spill
+    # 1: Spill
 
 postprocess:
   min_area_px: 500                     # Minimum contour area in pixels to count as detection
